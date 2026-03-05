@@ -21,9 +21,7 @@ public class TeamController {
 
     private final TeamService teamService;
 
-    /**
-     * Créer une nouvelle équipe
-     */
+
     @PostMapping
     public ResponseEntity<TeamDTO> createTeam(@Valid @RequestBody TeamDTO teamDTO) {
         log.info("REST request to create team: {}", teamDTO.getName());
@@ -31,9 +29,6 @@ public class TeamController {
         return new ResponseEntity<>(createdTeam, HttpStatus.CREATED);
     }
 
-    /**
-     * Récupérer une équipe par son ID
-     */
     @GetMapping("/{id}")
     public ResponseEntity<TeamDTO> getTeamById(@PathVariable UUID id) {
         log.info("REST request to get team by ID: {}", id);
@@ -41,9 +36,6 @@ public class TeamController {
         return ResponseEntity.ok(team);
     }
 
-    /**
-     * Récupérer une équipe par son nom
-     */
     @GetMapping("/name/{name}")
     public ResponseEntity<TeamDTO> getTeamByName(@PathVariable String name) {
         log.info("REST request to get team by name: {}", name);
@@ -51,9 +43,7 @@ public class TeamController {
         return ResponseEntity.ok(team);
     }
 
-    /**
-     * Récupérer toutes les équipes
-     */
+
     @GetMapping
     public ResponseEntity<List<TeamDTO>> getAllTeams(
             @RequestParam(required = false, defaultValue = "false") Boolean activeOnly) {
@@ -64,9 +54,7 @@ public class TeamController {
         return ResponseEntity.ok(teams);
     }
 
-    /**
-     * Mettre à jour une équipe
-     */
+
     @PutMapping("/{id}")
     public ResponseEntity<TeamDTO> updateTeam(
             @PathVariable UUID id,
@@ -76,9 +64,7 @@ public class TeamController {
         return ResponseEntity.ok(updatedTeam);
     }
 
-    /**
-     * Supprimer une équipe (soft delete)
-     */
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteTeam(@PathVariable UUID id) {
         log.info("REST request to delete team: {}", id);
@@ -86,9 +72,7 @@ public class TeamController {
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * Activer une équipe
-     */
+
     @PatchMapping("/{id}/activate")
     public ResponseEntity<Void> activateTeam(@PathVariable UUID id) {
         log.info("REST request to activate team: {}", id);
@@ -96,9 +80,6 @@ public class TeamController {
         return ResponseEntity.ok().build();
     }
 
-    /**
-     * Désactiver une équipe
-     */
     @PatchMapping("/{id}/deactivate")
     public ResponseEntity<Void> deactivateTeam(@PathVariable UUID id) {
         log.info("REST request to deactivate team: {}", id);
@@ -106,9 +87,7 @@ public class TeamController {
         return ResponseEntity.ok().build();
     }
 
-    /**
-     * Récupérer les équipes par ville
-     */
+
     @GetMapping("/city/{city}")
     public ResponseEntity<List<TeamDTO>> getTeamsByCity(@PathVariable String city) {
         log.info("REST request to get teams from city: {}", city);
@@ -116,9 +95,7 @@ public class TeamController {
         return ResponseEntity.ok(teams);
     }
 
-    /**
-     * Rechercher des équipes par mot-clé
-     */
+
     @GetMapping("/search")
     public ResponseEntity<List<TeamDTO>> searchTeams(@RequestParam String q) {
         log.info("REST request to search teams with keyword: {}", q);
@@ -126,9 +103,7 @@ public class TeamController {
         return ResponseEntity.ok(teams);
     }
 
-    /**
-     * Obtenir les statistiques d'une équipe
-     */
+
     @GetMapping("/{id}/statistics")
     public ResponseEntity<TeamService.TeamStatistics> getTeamStatistics(@PathVariable UUID id) {
         log.info("REST request to get statistics for team: {}", id);
@@ -136,9 +111,7 @@ public class TeamController {
         return ResponseEntity.ok(stats);
     }
 
-    /**
-     * Récupérer les équipes actives
-     */
+
     @GetMapping("/active")
     public ResponseEntity<List<TeamDTO>> getActiveTeams() {
         log.info("REST request to get all active teams");
@@ -146,9 +119,7 @@ public class TeamController {
         return ResponseEntity.ok(teams);
     }
 
-    /**
-     * Vérifier si un nom d'équipe est disponible
-     */
+
     @GetMapping("/check-name")
     public ResponseEntity<Boolean> checkTeamNameAvailability(@RequestParam String name) {
         log.info("REST request to check team name availability: {}", name);
