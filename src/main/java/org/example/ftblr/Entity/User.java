@@ -38,6 +38,10 @@ public class User {
     @Column(nullable = false)
     private String city;
 
+    @Column(name = "phone_number", length = 20)
+    private String phoneNumber;
+
+
     @Column(nullable = false)
     private Double latitude;
 

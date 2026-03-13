@@ -33,6 +33,10 @@ public class UserDTO {
     @Size(min = 2, max = 50, message = "Last name must be between 2 and 50 characters")
     private String lastName;
 
+    @NotBlank(message = "Password is required")
+    @Size(min = 6, message = "Password must be at least 6 characters")
+    private String password;
+
     @NotNull(message = "Date of birth is required")
     @Past(message = "Date of birth must be in the past")
     @JsonFormat(pattern = "yyyy-MM-dd")
@@ -40,6 +44,9 @@ public class UserDTO {
 
     @NotBlank(message = "City is required")
     private String city;
+
+    @Pattern(regexp = "^[0-9+\\s-]{8,20}$", message = "Invalid phone number format")
+    private String phoneNumber;
 
     @NotNull(message = "Latitude is required")
     @Min(value = -90, message = "Latitude must be between -90 and 90")

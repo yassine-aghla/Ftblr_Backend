@@ -12,6 +12,7 @@ import org.example.ftblr.exception.BusinessException;
 import org.example.ftblr.exception.ResourceNotFoundException;
 import org.example.ftblr.mapper.UserMapper;
 import org.example.ftblr.Repository.UserRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +27,7 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final UserMapper userMapper;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     public UserDTO createUser(UserDTO userDTO) {
@@ -36,6 +38,7 @@ public class UserServiceImpl implements UserService {
         }
 
         User user = userMapper.toEntity(userDTO);
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
         User savedUser = userRepository.save(user);
         log.info("User created successfully with ID: {}", savedUser.getId());
 
@@ -89,6 +92,7 @@ public class UserServiceImpl implements UserService {
         }
 
         userMapper.updateEntityFromDTO(userDTO, existingUser);
+        existingUser.setPassword(passwordEncoder.encode(existingUser.getPassword()));
         User updatedUser = userRepository.save(existingUser);
         log.info("User updated successfully with ID: {}", id);
 
