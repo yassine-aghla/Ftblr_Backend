@@ -3,6 +3,7 @@ package org.example.ftblr.Services.impl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.ftblr.Repository.UserRepository;
+import org.example.ftblr.Services.NotificationService;
 import org.example.ftblr.dtos.MatchDTO;
 import org.example.ftblr.Entity.*;
 import org.example.ftblr.dtos.MatchParticipationDTO;
@@ -67,6 +68,7 @@ public class MatchServiceImpl implements MatchService {
         match.setTerrain(terrain);
         match.setTeam1(team1);
         match.setTeam2(team2);
+        match.setCreatedBy(currentUser);
 
         Match savedMatch = matchRepository.save(match);
         log.info("Match created successfully with ID: {}", savedMatch.getId());
