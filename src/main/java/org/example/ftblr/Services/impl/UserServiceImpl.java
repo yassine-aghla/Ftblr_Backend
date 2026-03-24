@@ -2,7 +2,9 @@ package org.example.ftblr.Services.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.ftblr.Repository.PlayerStatsProjection;
 import org.example.ftblr.Services.UserService;
+import org.example.ftblr.dtos.PlayerOfMonthDTO;
 import org.example.ftblr.dtos.UserDTO;
 import org.example.ftblr.Entity.PositionStatus;
 import org.example.ftblr.Entity.Role;
@@ -12,11 +14,16 @@ import org.example.ftblr.exception.BusinessException;
 import org.example.ftblr.exception.ResourceNotFoundException;
 import org.example.ftblr.mapper.UserMapper;
 import org.example.ftblr.Repository.UserRepository;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.format.TextStyle;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -273,5 +280,59 @@ public class UserServiceImpl implements UserService {
                 .organizateurs(organizateurs)
                 .joueurs(joueurs)
                 .build();
+    }
+
+    @Override
+    public PlayerOfMonthDTO getPlayerOfTheMonth() {
+        log.info("Calculating player of the month");
+
+        // Définir la période (mois en cours)
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime startOfMonth = now.withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
+        LocalDateTime endOfMonth = startOfMonth.plusMonths(1).minusNanos(1);
+
+        Pageable topOne = PageRequest.of(0, 1);
+        List<PlayerStatsProjection> topPlayers = userRepository.findTopPlayersForPeriod(startOfMonth, endOfMonth, topOne);
+
+        if (topPlayers.isEmpty()) {
+            log.warn("No player found for the period, using default");
+            return getDefaultPlayerOfMonth();
+        }
+
+        PlayerStatsProjection player = topPlayers.get(0);
+
+        String monthName = startOfMonth.getMonth().getDisplayName(TextStyle.FULL, Locale.FRENCH);
+        int year = startOfMonth.getYear();
+        String title = "Joueur du mois de " + monthName + " " + year;
+
+        PlayerOfMonthDTO dto = new PlayerOfMonthDTO();
+        dto.setId(player.getId());
+        dto.setFirstName(player.getFirstName());
+        dto.setLastName(player.getLastName());
+        dto.setFullName(player.getFirstName() + " " + player.getLastName());
+        dto.setProfilePicture(player.getProfilePicture());
+        dto.setGoals(player.getGoals());
+        dto.setAssists(player.getAssists());
+        dto.setMatchesPlayed(player.getMatchesPlayed());
+        dto.setRating(Math.round(player.getAvgRating() * 10) / 10.0);
+        dto.setAttendanceRate(Math.round(player.getAttendanceRate() * 10) / 10.0);
+        dto.setPosition(player.getPosition());
+        dto.setTitle(title);
+
+        return dto;
+    }
+
+    private PlayerOfMonthDTO getDefaultPlayerOfMonth() {
+        PlayerOfMonthDTO dto = new PlayerOfMonthDTO();
+        dto.setFirstName("Ayoub");
+        dto.setLastName("Marzouk");
+        dto.setFullName("Ayoub Marzouk");
+        dto.setTitle("Joueur du mois par défaut");
+        dto.setGoals(0);
+        dto.setAssists(0);
+        dto.setMatchesPlayed(0);
+        dto.setRating(0);
+        dto.setAttendanceRate(100);
+        return dto;
     }
 }
