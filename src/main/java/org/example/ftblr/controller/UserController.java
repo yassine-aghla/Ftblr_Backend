@@ -382,5 +382,32 @@ public class UserController {
         return ResponseEntity.ok(Map.of("message", "Demande refusée"));
     }
 
+    @GetMapping("/absent-players")
+    public ResponseEntity<List<UserDTO>> getAbsentPlayers() {
+        log.info("REST request to get absent players");
+        User currentUser = getCurrentUser();
+        if (currentUser.getRole() != Role.ADMIN) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+
+        List<UUID> absentPlayerIds = attendanceRepository.findDistinctPlayerIdsByStatus(AttendanceStatus.ABSENT);
+
+        List<User> absentPlayers = userRepository.findAllById(absentPlayerIds);
+
+        return ResponseEntity.ok(userMapper.toDTOList(absentPlayers));
+    }
+
+    @GetMapping("/{userId}/absence-count")
+    public ResponseEntity<Map<String, Long>> getPlayerAbsenceCount(@PathVariable UUID userId) {
+        log.info("REST request to get absence count for user: {}", userId);
+
+        long absenceCount = attendanceRepository.countByPlayerIdAndStatus(userId, AttendanceStatus.ABSENT);
+
+        return ResponseEntity.ok(Map.of(
+                "absenceCount", absenceCount
+        ));
+    }
+
 
 }
