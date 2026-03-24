@@ -3,17 +3,28 @@ package org.example.ftblr.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.ftblr.Entity.*;
+import org.example.ftblr.Repository.NotificationRepository;
+import org.example.ftblr.Repository.PlayerAttendanceRepository;
+import org.example.ftblr.Repository.UserRepository;
+import org.example.ftblr.Services.NotificationService;
+import org.example.ftblr.dtos.OrganizerRequestDTO;
+import org.example.ftblr.dtos.PlayerOfMonthDTO;
 import org.example.ftblr.dtos.UserDTO;
-import org.example.ftblr.Entity.PositionStatus;
-import org.example.ftblr.Entity.Role;
-import org.example.ftblr.Entity.SkillLevel;
 import org.example.ftblr.Services.UserService;
+import org.example.ftblr.exception.ResourceNotFoundException;
+import org.example.ftblr.mapper.UserMapper;
+import org.example.ftblr.security.UserDetailsImpl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/users")
@@ -23,6 +34,10 @@ import java.util.UUID;
 public class UserController {
 
     private final UserService userService;
+    private final NotificationRepository notificationRepository;
+    private final UserMapper userMapper;
+    private final UserRepository userRepository;
+    private final PlayerAttendanceRepository attendanceRepository;
 
     @PostMapping
     public ResponseEntity<UserDTO> createUser(@Valid @RequestBody UserDTO userDTO) {
@@ -193,4 +208,120 @@ public class UserController {
         Double avg=userService.getMoyeneRating();
         return ResponseEntity.ok(avg);
     }
+
+    @PostMapping("/{id}/request-organizer")
+    public ResponseEntity<?> requestOrganizerRole(@PathVariable UUID id) {
+        log.info("REST request to request organizer role for user: {}", id);
+
+        User currentUser = getCurrentUser();
+        if (!currentUser.getId().equals(id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("message", "Vous ne pouvez faire cette demande que pour vous-même"));
+        }
+
+        if (currentUser.getRole() == Role.ORGANIZATEUR || currentUser.getRole() == Role.ADMIN) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("message", "Vous avez déjà un rôle d'organisateur ou d'admin"));
+        }
+
+        String title = "Demande de rôle organisateur";
+        String message = "L'utilisateur " + currentUser.getFirstName() + " " + currentUser.getLastName() +
+                " (" + currentUser.getEmail() + ") souhaite devenir organisateur.";
+        List<User> admins = userRepository.findByRole(Role.ADMIN);
+
+        admins.forEach(admin -> {
+            Notification notification = Notification.builder()
+                    .user(admin)
+                    .title(title)
+                    .message(message)
+                    .type(NotificationType.ORGANIZER_REQUEST)
+                    .isRead(false)
+                    .build();
+            notificationRepository.save(notification);
+        });
+
+        log.info("Organizer request sent to {} admins", admins.size());
+
+        return ResponseEntity.ok(Map.of(
+                "message", "Votre demande a été envoyée aux administrateurs",
+                "success", true
+        ));
+    }
+
+    private User getCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof UserDetailsImpl) {
+            UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+            return userRepository.findById(userDetails.getId())
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+        }
+        throw new RuntimeException("User not authenticated");
+    }
+
+    @GetMapping("/organizer-requests")
+    public ResponseEntity<List<OrganizerRequestDTO>> getPendingOrganizerRequests() {
+        log.info("REST request to get pending organizer requests");
+
+        User currentUser = getCurrentUser();
+        if (currentUser.getRole() != Role.ADMIN) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        List<Notification> notifications = notificationRepository.findPendingOrganizerRequests();
+
+        List<OrganizerRequestDTO> requests = notifications.stream()
+                .map(notif -> {
+                    OrganizerRequestDTO dto = new OrganizerRequestDTO();
+                    String message = notif.getMessage();
+                    String email = extractEmailFromMessage(message);
+
+                    User requestingUser = userRepository.findByEmail(email).orElse(null);
+
+                    if (requestingUser != null) {
+                        dto.setUserId(requestingUser.getId());
+                        dto.setUserFirstName(requestingUser.getFirstName());
+                        dto.setUserLastName(requestingUser.getLastName());
+                        dto.setUserEmail(requestingUser.getEmail());
+                    } else {
+                        dto.setUserId(null);
+                        dto.setUserEmail(email);
+                        dto.setUserFirstName(extractFirstNameFromMessage(message));
+                        dto.setUserLastName(extractLastNameFromMessage(message));
+                    }
+
+                    dto.setMessage(message);
+                    dto.setCreatedAt(notif.getCreatedAt());
+                    return dto;
+                })
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(requests);
+    }
+    private String extractEmailFromMessage(String message) {
+        int start = message.indexOf('(') + 1;
+        int end = message.indexOf(')');
+        if (start > 0 && end > start) {
+            return message.substring(start, end);
+        }
+        return "";
+    }
+
+    private String extractFirstNameFromMessage(String message) {
+        String afterUser = message.replace("L'utilisateur ", "");
+        int spaceIndex = afterUser.indexOf(' ');
+        if (spaceIndex > 0) {
+            return afterUser.substring(0, spaceIndex);
+        }
+        return "Inconnu";
+    }
+
+    private String extractLastNameFromMessage(String message) {
+        String afterUser = message.replace("L'utilisateur ", "");
+        int firstSpace = afterUser.indexOf(' ');
+        int emailStart = afterUser.indexOf('(');
+        if (firstSpace > 0 && emailStart > firstSpace) {
+            return afterUser.substring(firstSpace + 1, emailStart).trim();
+        }
+        return "Inconnu";
+    }
+
 }
