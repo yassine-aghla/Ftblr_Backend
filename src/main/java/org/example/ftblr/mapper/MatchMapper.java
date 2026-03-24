@@ -24,7 +24,10 @@ public interface MatchMapper {
     @Mapping(target = "isFull", expression = "java(entity.isFull())")
     @Mapping(target = "remainingSlots", expression = "java(entity.getRemainingSlots())")
     @Mapping(target = "canJoin", expression = "java(entity.canJoin())")
-    @Mapping(target = "participations", ignore = true) // IGNORER les participations ici
+    @Mapping(target = "participations", ignore = true)
+    @Mapping(target = "createdById", source = "createdBy.id")
+    @Mapping(target = "createdByName", expression = "java(entity.getCreatedBy() != null ? entity.getCreatedBy().getFullName() : null)")
+    @Mapping(target = "createdBy", source = "createdBy")
     MatchDTO toDTO(Match entity);
 
     @Mapping(target = "terrain", ignore = true)

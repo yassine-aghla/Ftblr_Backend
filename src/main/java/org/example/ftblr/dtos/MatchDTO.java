@@ -80,6 +80,10 @@ public class MatchDTO {
     private Integer remainingSlots;
     private Boolean canJoin;
 
+    private UUID createdById;
+    private String createdByName;
+    private UserDTO createdBy;
+
     private List<MatchParticipationDTO> participations;
 
     // Dans la méthode enrichissement
