@@ -354,6 +354,33 @@ public class UserController {
         return ResponseEntity.ok(Map.of("message", "Demande acceptée avec succès"));
     }
 
+    @PostMapping("/organizer-requests/{userId}/reject")
+    public ResponseEntity<?> rejectOrganizerRequest(@PathVariable UUID userId) {
+        log.info("REST request to reject organizer request for user: {}", userId);
+
+        User currentUser = getCurrentUser();
+        if (currentUser.getRole() != Role.ADMIN) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("message", "Seuls les administrateurs peuvent refuser les demandes"));
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        List<Notification> notifications = notificationRepository.findByUserIdAndType(userId, NotificationType.ORGANIZER_REQUEST);
+        notifications.forEach(n -> n.setIsRead(true));
+        notificationRepository.saveAll(notifications);
+
+        Notification notif = Notification.builder()
+                .user(user)
+                .title("Demande refusée")
+                .message("Votre demande pour devenir organisateur a été refusée. Veuillez contacter un administrateur pour plus d'informations.")
+                .type(NotificationType.ORGANIZER_REQUEST_REJECTED)
+                .isRead(false)
+                .build();
+        notificationRepository.save(notif);
+
+        return ResponseEntity.ok(Map.of("message", "Demande refusée"));
+    }
 
 
 }
