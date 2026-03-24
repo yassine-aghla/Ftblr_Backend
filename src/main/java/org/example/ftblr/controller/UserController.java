@@ -324,4 +324,36 @@ public class UserController {
         return "Inconnu";
     }
 
+    @PostMapping("/organizer-requests/{userId}/accept")
+    public ResponseEntity<?> acceptOrganizerRequest(@PathVariable UUID userId) {
+        log.info("REST request to accept organizer request for user: {}", userId);
+
+        User currentUser = getCurrentUser();
+        if (currentUser.getRole() != Role.ADMIN) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("message", "Seuls les administrateurs peuvent accepter les demandes"));
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        user.setRole(Role.ORGANIZATEUR);
+        userRepository.save(user);
+        List<Notification> notifications = notificationRepository.findByUserIdAndType(userId, NotificationType.ORGANIZER_REQUEST);
+        notifications.forEach(n -> n.setIsRead(true));
+        notificationRepository.saveAll(notifications);
+        Notification notif = Notification.builder()
+                .user(user)
+                .title(" Demande acceptée")
+                .message("Félicitations ! Votre demande pour devenir organisateur a été acceptée.")
+                .type(NotificationType.ORGANIZER_REQUEST_APPROVED)
+                .isRead(false)
+                .build();
+        notificationRepository.save(notif);
+
+        return ResponseEntity.ok(Map.of("message", "Demande acceptée avec succès"));
+    }
+
+
+
 }
