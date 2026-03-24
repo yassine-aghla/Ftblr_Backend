@@ -27,6 +27,10 @@ public class Match {
     @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID id;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by_id", nullable = false)
+    private User createdBy;
+
     @Column(nullable = false)
     private String titre;
 
