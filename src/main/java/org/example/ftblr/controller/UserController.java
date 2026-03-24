@@ -409,5 +409,10 @@ public class UserController {
         ));
     }
 
-
+    @GetMapping("/player-of-month")
+    public ResponseEntity<PlayerOfMonthDTO> getPlayerOfTheMonth() {
+        log.info("REST request to get player of the month");
+        PlayerOfMonthDTO player = userService.getPlayerOfTheMonth();
+        return ResponseEntity.ok(player);
+    }
 }
