@@ -5,6 +5,7 @@ import org.example.ftblr.Entity.Role;
 import org.example.ftblr.Entity.SkillLevel;
 import org.example.ftblr.dtos.PlayerOfMonthDTO;
 import org.example.ftblr.dtos.UserDTO;
+import org.example.ftblr.dtos.UserStatsDTO;
 
 import java.util.List;
 import java.util.UUID;
@@ -34,7 +35,7 @@ public interface UserService {
     Double getMoyeneRating();
     UserStatistics getUserStatistics();
     PlayerOfMonthDTO getPlayerOfTheMonth();
-
+    UserStatsDTO getUserStatsById(UUID userId);
     @lombok.Data
     @lombok.Builder
     class UserStatistics {
