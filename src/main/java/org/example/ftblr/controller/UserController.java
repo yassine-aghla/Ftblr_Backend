@@ -12,6 +12,7 @@ import org.example.ftblr.dtos.OrganizerRequestDTO;
 import org.example.ftblr.dtos.PlayerOfMonthDTO;
 import org.example.ftblr.dtos.UserDTO;
 import org.example.ftblr.Services.UserService;
+import org.example.ftblr.dtos.UserStatsDTO;
 import org.example.ftblr.exception.ResourceNotFoundException;
 import org.example.ftblr.mapper.UserMapper;
 import org.example.ftblr.security.UserDetailsImpl;
@@ -414,5 +415,12 @@ public class UserController {
         log.info("REST request to get player of the month");
         PlayerOfMonthDTO player = userService.getPlayerOfTheMonth();
         return ResponseEntity.ok(player);
+    }
+
+    @GetMapping("/{id}/stats")
+    public ResponseEntity<UserStatsDTO> getUserStats(@PathVariable UUID id) {
+        log.info("REST request to get stats for user: {}", id);
+        UserStatsDTO stats = userService.getUserStatsById(id);
+        return ResponseEntity.ok(stats);
     }
 }
