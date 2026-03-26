@@ -6,6 +6,7 @@ public enum NotificationType {
     PLAYER_ABSENT,       // Joueur absent
     PLAYER_BANNED,       // Joueur banni
     MATCH_COMPLETED,     // Match terminé
+    MATCH_CANCELLED,
     ORGANIZER_REQUEST,
     ORGANIZER_REQUEST_REJECTED,
     ORGANIZER_REQUEST_APPROVED

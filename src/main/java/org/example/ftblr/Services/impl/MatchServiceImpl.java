@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -40,6 +41,7 @@ public class MatchServiceImpl implements MatchService {
     private final MatchMapper matchMapper;
     private final TeamMapper teamMapper;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     @Override
     public MatchDTO createMatch(MatchDTO matchDTO) {
@@ -394,11 +396,47 @@ public class MatchServiceImpl implements MatchService {
             throw new BusinessException("Cannot cancel a completed match");
         }
 
+        User CurrentUser =getCurrentUser();
+        if(!match.getCreatedBy().getId().equals(CurrentUser.getId()) && !CurrentUser.getRole().equals(Role.ADMIN)){
+            throw new BusinessException("Seullement l'organisateur ou bien l'admin qui peut annuler le match");
+        }
+
+        LocalDateTime matchTime=match.getTime();
+        LocalDateTime now=LocalDateTime.now();
+        LocalDateTime twoHoursBefore=matchTime.minusHours(2);
+
+        if(now.isAfter(twoHoursBefore)){
+            throw new BusinessException("le match doit etre annulee 2 heurs avant sont temps");
+        }
+
         match.setStatus(StatusMatch.CANCELLED);
         Match updatedMatch = matchRepository.save(match);
-        log.info("Match cancelled successfully");
+
+        sendCancellationNotifications(updatedMatch);
+
+        log.info("Match cancelled successfully by organizer: {}", CurrentUser.getEmail());
 
         return matchMapper.toDTO(updatedMatch);
+
+    }
+
+    private void sendCancellationNotifications(Match match) {
+        String title = "Match annulé";
+        String message = "Le match \"" + match.getTitre() + "\" prévu le " +
+                match.getTime().format(DateTimeFormatter.ofPattern("dd/MM/yyyy à HH:mm")) +
+                " a été annulé par l'organisateur.";
+
+        match.getParticipations().forEach(participation -> {
+            notificationService.createNotification(
+                    participation.getUser().getId(),
+                    title,
+                    message,
+                    NotificationType.MATCH_CANCELLED,
+                    match.getId()
+            );
+        });
+
+        log.info("Cancellation notifications sent to {} participants", match.getParticipations().size());
     }
 
     @Override
