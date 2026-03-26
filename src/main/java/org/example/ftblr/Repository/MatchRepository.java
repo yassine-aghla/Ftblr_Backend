@@ -14,7 +14,6 @@ import java.util.UUID;
 @Repository
 public interface MatchRepository extends JpaRepository<Match, UUID> {
 
-    // Vérifications d'unicité
     boolean existsByTeam1AndTeam2AndTime(Team team1, Team team2, LocalDateTime time);
 
     @Query("SELECT COUNT(m) > 0 FROM Match m WHERE " +
