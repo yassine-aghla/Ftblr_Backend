@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.ftblr.dtos.MatchDTO;
 import org.example.ftblr.Entity.*;
 import org.example.ftblr.Services.MatchService;
+import org.example.ftblr.dtos.MatchResultDetailDTO;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -317,5 +318,12 @@ public class MatchController {
 
         List<MatchDTO> matches = matchService.getMatchesByTerrainAndDateRange(terrainId, startOfDay, endOfDay);
         return ResponseEntity.ok(matches);
+    }
+
+    @GetMapping("/{id}/result")
+    public ResponseEntity<MatchResultDetailDTO> getMatchResult(@PathVariable UUID id) {
+        log.info("REST request to get match result: {}", id);
+        MatchResultDetailDTO result = matchService.getMatchResultDetail(id);
+        return ResponseEntity.ok(result);
     }
 }
