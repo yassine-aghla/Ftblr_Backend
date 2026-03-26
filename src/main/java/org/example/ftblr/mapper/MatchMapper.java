@@ -2,9 +2,12 @@ package org.example.ftblr.mapper;
 
 import org.example.ftblr.dtos.MatchDTO;
 import org.example.ftblr.Entity.Match;
+import org.example.ftblr.Entity.MatchParticipation;
+import org.example.ftblr.dtos.MatchParticipationDTO;
 import org.mapstruct.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE,
         uses = {TerrainMapper.class, TeamMapper.class})
@@ -21,12 +24,17 @@ public interface MatchMapper {
     @Mapping(target = "isFull", expression = "java(entity.isFull())")
     @Mapping(target = "remainingSlots", expression = "java(entity.getRemainingSlots())")
     @Mapping(target = "canJoin", expression = "java(entity.canJoin())")
+    @Mapping(target = "participations", ignore = true)
+    @Mapping(target = "createdById", source = "createdBy.id")
+    @Mapping(target = "createdByName", expression = "java(entity.getCreatedBy() != null ? entity.getCreatedBy().getFullName() : null)")
+    @Mapping(target = "createdBy", source = "createdBy")
     MatchDTO toDTO(Match entity);
 
     @Mapping(target = "terrain", ignore = true)
     @Mapping(target = "team1", ignore = true)
     @Mapping(target = "team2", ignore = true)
     @Mapping(target = "winnerTeam", ignore = true)
+    @Mapping(target = "participations", ignore = true)
     Match toEntity(MatchDTO dto);
 
     List<MatchDTO> toDTOList(List<Match> entities);
@@ -36,5 +44,19 @@ public interface MatchMapper {
     @Mapping(target = "team1", ignore = true)
     @Mapping(target = "team2", ignore = true)
     @Mapping(target = "winnerTeam", ignore = true)
+    @Mapping(target = "participations", ignore = true)
     void updateEntityFromDTO(MatchDTO dto, @MappingTarget Match entity);
+
+    default List<MatchParticipationDTO> mapParticipations(List<MatchParticipation> participations) {
+        if (participations == null) return null;
+        return participations.stream()
+                .map(this::toParticipationDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Mapping(target = "match", ignore = true)
+    @Mapping(target = "matchId", source = "match.id")
+    @Mapping(target = "user", source = "user")
+    @Mapping(target = "team", source = "team")
+    MatchParticipationDTO toParticipationDTO(MatchParticipation participation);
 }

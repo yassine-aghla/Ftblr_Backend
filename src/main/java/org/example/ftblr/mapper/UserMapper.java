@@ -13,11 +13,11 @@ import java.util.List;
 )
 public interface UserMapper {
 
+    @Mapping(target = "password", ignore = true)
     UserDTO toDTO(User user);
 
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
-    @Mapping(target = "password", ignore = true)
     User toEntity(UserDTO userDTO);
 
     List<UserDTO> toDTOList(List<User> users);
@@ -26,7 +26,6 @@ public interface UserMapper {
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "id", ignore = true)
-    @Mapping(target = "password", ignore = true)
     void updateEntityFromDTO(UserDTO userDTO, @MappingTarget User user);
 
 }

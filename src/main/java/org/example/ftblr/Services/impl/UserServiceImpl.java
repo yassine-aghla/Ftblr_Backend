@@ -2,21 +2,30 @@ package org.example.ftblr.Services.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.ftblr.Entity.*;
+import org.example.ftblr.Repository.MatchGoalRepository;
+import org.example.ftblr.Repository.MatchParticipationRepository;
+import org.example.ftblr.Repository.PlayerStatsProjection;
 import org.example.ftblr.Services.UserService;
+import org.example.ftblr.dtos.PlayerOfMonthDTO;
 import org.example.ftblr.dtos.UserDTO;
-import org.example.ftblr.Entity.PositionStatus;
-import org.example.ftblr.Entity.Role;
-import org.example.ftblr.Entity.SkillLevel;
-import org.example.ftblr.Entity.User;
+import org.example.ftblr.dtos.UserStatsDTO;
 import org.example.ftblr.exception.BusinessException;
 import org.example.ftblr.exception.ResourceNotFoundException;
 import org.example.ftblr.mapper.UserMapper;
 import org.example.ftblr.Repository.UserRepository;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.format.TextStyle;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -26,6 +35,9 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final UserMapper userMapper;
+    private final PasswordEncoder passwordEncoder;
+    private final MatchParticipationRepository matchParticipationRepository;
+    private final MatchGoalRepository matchGoalRepository;
 
     @Override
     public UserDTO createUser(UserDTO userDTO) {
@@ -36,6 +48,7 @@ public class UserServiceImpl implements UserService {
         }
 
         User user = userMapper.toEntity(userDTO);
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
         User savedUser = userRepository.save(user);
         log.info("User created successfully with ID: {}", savedUser.getId());
 
@@ -89,6 +102,7 @@ public class UserServiceImpl implements UserService {
         }
 
         userMapper.updateEntityFromDTO(userDTO, existingUser);
+        existingUser.setPassword(passwordEncoder.encode(existingUser.getPassword()));
         User updatedUser = userRepository.save(existingUser);
         log.info("User updated successfully with ID: {}", id);
 
@@ -269,5 +283,100 @@ public class UserServiceImpl implements UserService {
                 .organizateurs(organizateurs)
                 .joueurs(joueurs)
                 .build();
+    }
+
+    @Override
+    public PlayerOfMonthDTO getPlayerOfTheMonth() {
+        log.info("Calculating player of the month");
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime startOfMonth = now.withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
+        LocalDateTime endOfMonth = startOfMonth.plusMonths(1).minusNanos(1);
+
+        Pageable topOne = PageRequest.of(0, 1);
+        List<PlayerStatsProjection> topPlayers = userRepository.findTopPlayersForPeriod(startOfMonth, endOfMonth, topOne);
+
+        if (topPlayers.isEmpty()) {
+            log.warn("No player found for the period, using default");
+            return getDefaultPlayerOfMonth();
+        }
+
+        PlayerStatsProjection player = topPlayers.get(0);
+
+        String monthName = startOfMonth.getMonth().getDisplayName(TextStyle.FULL, Locale.FRENCH);
+        int year = startOfMonth.getYear();
+        String title = "Joueur du mois de " + monthName + " " + year;
+
+        PlayerOfMonthDTO dto = new PlayerOfMonthDTO();
+        dto.setId(player.getId());
+        dto.setFirstName(player.getFirstName());
+        dto.setLastName(player.getLastName());
+        dto.setFullName(player.getFirstName() + " " + player.getLastName());
+        dto.setProfilePicture(player.getProfilePicture());
+        dto.setGoals(player.getGoals());
+        dto.setAssists(player.getAssists());
+        dto.setMatchesPlayed(player.getMatchesPlayed());
+        dto.setRating(Math.round(player.getAvgRating() * 10) / 10.0);
+        dto.setAttendanceRate(Math.round(player.getAttendanceRate() * 10) / 10.0);
+        dto.setPosition(player.getPosition());
+        dto.setTitle(title);
+
+        return dto;
+    }
+
+    @Override
+    public UserStatsDTO getUserStatsById(UUID userId) {
+        log.info("Fetching stats for user: {}", userId);
+
+        List<MatchParticipation> participations = matchParticipationRepository.findByUserId(userId);
+        List<Match> matchesPlayed = participations.stream()
+                .map(MatchParticipation::getMatch)
+                .filter(m -> m.getStatus() == StatusMatch.COMPLETED)
+                .collect(Collectors.toList());
+
+        int totalMatches = matchesPlayed.size();
+
+        int wins = 0;
+        for (Match match : matchesPlayed) {
+            UUID userTeamId = getTeamIdForUserInMatch(userId, match);
+            if (userTeamId != null && match.getWinnerTeam() != null) {
+                if (match.getWinnerTeam().getId().equals(userTeamId)) {
+                    wins++;
+                }
+            }
+        }
+
+        int goals = matchGoalRepository.countByScorerId(userId);
+        int assists = matchGoalRepository.countByAssistId(userId);
+
+        return UserStatsDTO.builder()
+                .matchesPlayed(totalMatches)
+                .wins(wins)
+                .goals(goals)
+                .assists(assists)
+                .build();
+    }
+
+    private UUID getTeamIdForUserInMatch(UUID userId, Match match) {
+        return match.getParticipations().stream()
+                .filter(p -> p.getUser().getId().equals(userId))
+                .map(MatchParticipation::getTeam)
+                .map(Team::getId)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private PlayerOfMonthDTO getDefaultPlayerOfMonth() {
+        PlayerOfMonthDTO dto = new PlayerOfMonthDTO();
+        dto.setFirstName("Ayoub");
+        dto.setLastName("Marzouk");
+        dto.setFullName("Ayoub Marzouk");
+        dto.setTitle("Joueur du mois par défaut");
+        dto.setGoals(0);
+        dto.setAssists(0);
+        dto.setMatchesPlayed(0);
+        dto.setRating(0);
+        dto.setAttendanceRate(100);
+        return dto;
     }
 }

@@ -30,6 +30,11 @@ public class RegisterRequest {
     @NotBlank(message = "City is required")
     private String city;
 
+    @Pattern(regexp = "^[0-9+\\s-]{8,20}$", message = "Invalid phone number format")
+    private String phoneNumber;
+
+    private String profilePicture;
+
     @NotNull(message = "Latitude is required")
     private Double latitude;
 

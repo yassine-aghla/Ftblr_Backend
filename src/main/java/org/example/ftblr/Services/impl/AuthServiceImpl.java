@@ -75,6 +75,8 @@ public class AuthServiceImpl implements AuthService {
                 .lastName(registerRequest.getLastName())
                 .dateDeNaissance(registerRequest.getDateDeNaissance())
                 .city(registerRequest.getCity())
+                .phoneNumber(registerRequest.getPhoneNumber()).
+                profilePicture(registerRequest.getProfilePicture())
                 .latitude(registerRequest.getLatitude())
                 .longitude(registerRequest.getLongitude())
                 .skillLevel(registerRequest.getSkillLevel())

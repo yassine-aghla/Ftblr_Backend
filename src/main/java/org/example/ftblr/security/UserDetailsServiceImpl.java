@@ -2,7 +2,9 @@ package org.example.ftblr.security;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.ftblr.Entity.User;
 import org.example.ftblr.Repository.UserRepository;
+import org.example.ftblr.exception.BusinessException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -21,9 +23,11 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         log.info("Loading user by email: {}", email);
 
-        org.example.ftblr.Entity.User user = userRepository.findByEmail(email)
+     User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
-
+       if(!user.getIsActive()){
+           throw new UsernameNotFoundException("Votre compte a été désactivé. Veuillez contacter le support pour plus d'informations.");
+       }
         return UserDetailsImpl.build(user);
     }
 }
