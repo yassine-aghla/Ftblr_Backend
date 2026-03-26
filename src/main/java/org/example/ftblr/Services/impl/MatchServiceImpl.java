@@ -2,18 +2,13 @@ package org.example.ftblr.Services.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.ftblr.Repository.UserRepository;
+import org.example.ftblr.Repository.*;
 import org.example.ftblr.Services.NotificationService;
-import org.example.ftblr.dtos.MatchDTO;
+import org.example.ftblr.dtos.*;
 import org.example.ftblr.Entity.*;
-import org.example.ftblr.dtos.MatchParticipationDTO;
-import org.example.ftblr.dtos.UserDTO;
 import org.example.ftblr.exception.BusinessException;
 import org.example.ftblr.exception.ResourceNotFoundException;
 import org.example.ftblr.mapper.MatchMapper;
-import org.example.ftblr.Repository.MatchRepository;
-import org.example.ftblr.Repository.TeamRepository;
-import org.example.ftblr.Repository.TerrainRepository;
 import org.example.ftblr.Services.MatchService;
 import org.example.ftblr.mapper.TeamMapper;
 import org.example.ftblr.security.UserDetailsImpl;
@@ -26,6 +21,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -38,6 +34,9 @@ public class MatchServiceImpl implements MatchService {
     private final MatchRepository matchRepository;
     private final TerrainRepository terrainRepository;
     private final TeamRepository teamRepository;
+    private final MatchGoalRepository matchGoalRepository;
+    private final MatchParticipationRepository matchParticipationRepository;
+    private final PlayerRatingRepository playerRatingRepository;
     private final MatchMapper matchMapper;
     private final TeamMapper teamMapper;
     private final UserRepository userRepository;
@@ -665,5 +664,103 @@ public class MatchServiceImpl implements MatchService {
         } catch (BusinessException e) {
             return false;
         }
+    }
+    @Override
+    public MatchResultDetailDTO getMatchResultDetail(UUID matchId) {
+        log.info("Fetching match result detail for match: {}", matchId);
+
+        Match match = matchRepository.findById(matchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Match not found"));
+
+        if (match.getStatus() != StatusMatch.COMPLETED) {
+            throw new BusinessException("Match is not completed yet");
+        }
+
+        List<MatchGoal> goals = matchGoalRepository.findByMatchId(matchId);
+        List<GoalDetailDTO> goalDTOs = goals.stream()
+                .map(g -> {
+                    GoalDetailDTO dto = new GoalDetailDTO();
+                    dto.setScorerId(g.getScorer().getId());
+                    dto.setScorerName(g.getScorer().getFullName());
+                    if (g.getAssistant() != null) {
+                        dto.setAssistId(g.getAssistant().getId());
+                        dto.setAssistName(g.getAssistant().getFullName());
+                    }
+                    dto.setMinute(g.getMinute());
+                    dto.setTeamType(g.getTeamType().name());
+                    return dto;
+                })
+                .collect(Collectors.toList());
+
+        List<PlayerRating> ratings = playerRatingRepository.findByMatchId(matchId);
+        Map<UUID, List<PlayerRating>> ratingsByPlayer = ratings.stream()
+                .collect(Collectors.groupingBy(r -> r.getRatedPlayer().getId()));
+
+        List<PlayerRatingDetailDTO> ratingDTOs = ratingsByPlayer.entrySet().stream()
+                .map(entry -> {
+                    UUID playerId = entry.getKey();
+                    List<PlayerRating> playerRatings = entry.getValue();
+                    double avg = playerRatings.stream()
+                            .mapToInt(PlayerRating::getRating)
+                            .average()
+                            .orElse(0);
+
+                    User player = playerRatings.get(0).getRatedPlayer();
+
+                    PlayerRatingDetailDTO dto = new PlayerRatingDetailDTO();
+                    dto.setPlayerId(playerId);
+                    dto.setPlayerName(player.getFullName());
+                    dto.setPlayerPosition(player.getPosition().name());
+                    dto.setProfilePicture(player.getProfilePicture());
+                    dto.setAverageRating(Math.round(avg * 10) / 10.0);
+                    dto.setRatingCount(playerRatings.size());
+                    return dto;
+                })
+                .collect(Collectors.toList());
+
+        TeamDetailDTO team1DTO = buildTeamDetail(match.getTeam1(), matchId);
+        TeamDetailDTO team2DTO = buildTeamDetail(match.getTeam2(), matchId);
+
+        return MatchResultDetailDTO.builder()
+                .matchId(match.getId())
+                .matchTitle(match.getTitre())
+                .matchTime(match.getTime())
+                .matchType(match.getMatchType().name())
+                .terrainName(match.getTerrain().getName())
+                .terrainAddress(match.getTerrain().getAddress())
+                .team1Score(match.getScoreTeam1() != null ? match.getScoreTeam1() : 0)
+                .team2Score(match.getScoreTeam2() != null ? match.getScoreTeam2() : 0)
+                .winnerTeamId(match.getWinnerTeam() != null ? match.getWinnerTeam().getId() : null)
+                .winnerTeamName(match.getWinnerTeam() != null ? match.getWinnerTeam().getName() : null)
+                .goals(goalDTOs)
+                .playerRatings(ratingDTOs)
+                .team1(team1DTO)
+                .team2(team2DTO)
+                .build();
+    }
+
+    private TeamDetailDTO buildTeamDetail(Team team, UUID matchId) {
+        List<MatchParticipation> participations = matchParticipationRepository.findByMatchIdAndTeamId(matchId, team.getId());
+
+        List<PlayerDetailDTO> players = participations.stream()
+                .map(p -> {
+                    User user = p.getUser();
+                    PlayerDetailDTO dto = new PlayerDetailDTO();
+                    dto.setId(user.getId());
+                    dto.setFirstName(user.getFirstName());
+                    dto.setLastName(user.getLastName());
+                    dto.setPosition(user.getPosition().name());
+                    dto.setProfilePicture(user.getProfilePicture());
+                    dto.setRating(user.getRating());
+                    return dto;
+                })
+                .collect(Collectors.toList());
+
+        TeamDetailDTO dto = new TeamDetailDTO();
+        dto.setId(team.getId());
+        dto.setName(team.getName());
+        dto.setLogo(team.getLogo());
+        dto.setPlayers(players);
+        return dto;
     }
 }
