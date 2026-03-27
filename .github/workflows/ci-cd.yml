@@ -1,0 +1,334 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  JAVA_VERSION: '17'
+  DOCKER_IMAGE: ftblr
+  DOCKER_REGISTRY: docker.io
+
+jobs:
+  # ==================== STEP 1: TRIGGER ====================
+  trigger:
+    name:  Trigger
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🚀 Pipeline triggered
+        run: |
+          echo "=========================================="
+          echo "Pipeline triggered by: ${{ github.event_name }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Author: ${{ github.actor }}"
+          echo "Time: $(date)"
+          echo "=========================================="
+
+  # ==================== STEP 2: BUILD ====================
+  build:
+    name:  Build
+    runs-on: ubuntu-latest
+    needs: trigger
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: 📦 Build project
+        run: mvn clean compile
+
+  # ==================== STEP 3: TEST ====================
+  test:
+    name:  Test
+    runs-on: ubuntu-latest
+    needs: build
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: rajabarca
+          POSTGRES_DB: FTBLR_db
+        ports:
+          - 5431:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Wait for PostgreSQL
+        run: |
+          echo "Waiting for PostgreSQL to be ready..."
+          until pg_isready -h localhost -p 5431 -U postgres; do
+            sleep 2
+            echo -n "."
+          done
+          echo ""
+          echo "PostgreSQL is ready!"
+
+      - name:  Run tests
+        run: mvn test
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5431/FTBLR_db
+          SPRING_DATASOURCE_USERNAME: postgres
+          SPRING_DATASOURCE_PASSWORD: rajabarca
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.ref_name }}
+          path: target/surefire-reports
+          retention-days: 7
+
+      - name: Display test summary
+        if: always()
+        run: |
+          echo "##  Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f target/surefire-reports/TEST-*.xml ]; then
+            echo "Tests completed successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo " Tests failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ==================== STEP 4: PACKAGE ====================
+  package:
+    name:  Package
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: maven
+
+      - name:  Package JAR
+        run: mvn package -DskipTests
+
+      - name: Get version from pom.xml
+        id: get_version
+        run: |
+          VERSION=$(grep -m1 '<version>' pom.xml | sed -E 's/.*<version>(.*)<\/version>.*/\1/')
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "JAR_NAME=FTBLR-$VERSION.jar" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Rename JAR
+        run: |
+          if [ -f target/FTBLR-0.0.1-SNAPSHOT.jar ]; then
+            mv target/FTBLR-0.0.1-SNAPSHOT.jar target/${{ steps.get_version.outputs.JAR_NAME }}
+          fi
+          ls -la target/
+
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ftblr-jar-${{ github.ref_name }}
+          path: target/*.jar
+          retention-days: 7
+
+  # ==================== STEP 5: DOCKERIZE ====================
+  dockerize:
+    name:  Dockerize
+    runs-on: ubuntu-latest
+    needs: package
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download JAR
+        uses: actions/download-artifact@v4
+        with:
+          name: ftblr-jar-${{ github.ref_name }}
+          path: target
+
+      - name: Get version
+        id: get_version
+        run: |
+          VERSION=$(grep -m1 '<version>' pom.xml | sed -E 's/.*<version>(.*)<\/version>.*/\1/')
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: List JAR files
+        run: ls -la target/
+
+      - name: Create Dockerfile
+        run: |
+          cat > Dockerfile << 'EOF'
+          FROM openjdk:17-jdk-slim
+          
+          LABEL maintainer="FTBLR Team"
+          LABEL description="FTBLR Football Match Management Application"
+          
+          WORKDIR /app
+          
+          # Copy JAR file
+          COPY target/*.jar app.jar
+          
+          # Create non-root user for security
+          RUN groupadd -r ftblr && useradd -r -g ftblr ftblr
+          USER ftblr
+          
+          # Expose application port
+          EXPOSE 8084
+          
+          # Health check
+          HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+            CMD wget --quiet --tries=1 --spider http://localhost:8084/actuator/health || exit 1
+          
+          # Run the application
+          ENTRYPOINT ["java", "-jar", "app.jar"]
+          EOF
+
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ env.DOCKER_IMAGE }}:${{ github.ref_name }}-${{ steps.get_version.outputs.VERSION }} .
+          docker tag ${{ env.DOCKER_IMAGE }}:${{ github.ref_name }}-${{ steps.get_version.outputs.VERSION }} ${{ env.DOCKER_IMAGE }}:${{ github.ref_name }}
+          docker images
+
+      - name: Save Docker image
+        run: |
+          docker save ${{ env.DOCKER_IMAGE }}:${{ github.ref_name }}-${{ steps.get_version.outputs.VERSION }} | gzip > ftblr-${{ github.ref_name }}.tar.gz
+          ls -la *.tar.gz
+
+      - name: Upload Docker image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image-${{ github.ref_name }}
+          path: ftblr-*.tar.gz
+          retention-days: 7
+
+      - name: Display Docker image info
+        run: |
+          echo "##  Docker Image Created" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Image Name | ${{ env.DOCKER_IMAGE }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tag | ${{ github.ref_name }}-${{ steps.get_version.outputs.VERSION }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch Tag | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Size | $(docker images ${{ env.DOCKER_IMAGE }} --format '{{.Size}}') |" >> $GITHUB_STEP_SUMMARY
+
+  # ==================== STEP 6: PUSH ====================
+  push:
+    name:  Push
+    runs-on: ubuntu-latest
+    needs: dockerize
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    steps:
+      - name: Download Docker image
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image-${{ github.ref_name }}
+          path: .
+
+      - name: Get version
+        id: get_version
+        run: |
+          VERSION=$(grep -m1 '<version>' pom.xml | sed -E 's/.*<version>(.*)<\/version>.*/\1/')
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Load Docker image
+        run: |
+          echo "Loading Docker image..."
+          gunzip -c ftblr-${{ github.ref_name }}.tar.gz | docker load
+          docker images
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Tag and Push Docker image
+        run: |
+          echo "Tagging images..."
+          
+          # Tag avec la branche
+          docker tag ${{ env.DOCKER_IMAGE }}:${{ github.ref_name }} ${{ env.DOCKER_REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}:${{ github.ref_name }}
+          docker push ${{ env.DOCKER_REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}:${{ github.ref_name }}
+          echo " Pushed ${{ github.ref_name }} tag"
+          
+          # Tag avec la version
+          docker tag ${{ env.DOCKER_IMAGE }}:${{ github.ref_name }}-${{ steps.get_version.outputs.VERSION }} ${{ env.DOCKER_REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}:${{ steps.get_version.outputs.VERSION }}
+          docker push ${{ env.DOCKER_REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}:${{ steps.get_version.outputs.VERSION }}
+          echo " Pushed version ${{ steps.get_version.outputs.VERSION }} tag"
+          
+          # Si c'est main, tag aussi comme latest
+          if [ "${{ github.ref_name }}" == "main" ]; then
+            docker tag ${{ env.DOCKER_IMAGE }}:${{ github.ref_name }} ${{ env.DOCKER_REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}:latest
+            docker push ${{ env.DOCKER_REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}:latest
+            echo " Pushed latest tag"
+          fi
+
+      - name: Create summary
+        run: |
+          echo "#  Pipeline Completed Successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "##  Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Step | Status | Details |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Trigger |  | Branch: ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "|  Build | | Java ${{ env.JAVA_VERSION }} |" >> $GITHUB_STEP_SUMMARY
+          echo "|  Test | | PostgreSQL tests passed |" >> $GITHUB_STEP_SUMMARY
+          echo "|  Package | | JAR created |" >> $GITHUB_STEP_SUMMARY
+          echo "|  Dockerize | | Image built |" >> $GITHUB_STEP_SUMMARY
+          echo "|  Push | | Pushed to Docker Hub |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Docker Images" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Registry | Tag | Pull Command |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-----|--------------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker Hub | ${{ github.ref_name }} | \`docker pull ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}:${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker Hub | ${{ steps.get_version.outputs.VERSION }} | \`docker pull ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}:${{ steps.get_version.outputs.VERSION }}\` |" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ github.ref_name }}" == "main" ]; then
+            echo "| Docker Hub | latest | \`docker pull ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}:latest\` |" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "##  Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "1. Run the container:" >> $GITHUB_STEP_SUMMARY
+          echo "   \`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "   docker run -p 8084:8084 ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}:${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "   \`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "2. With PostgreSQL:" >> $GITHUB_STEP_SUMMARY
+          echo "   \`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "   docker run -d --name postgres -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=rajabarca -e POSTGRES_DB=FTBLR_db -p 5431:5432 postgres:15" >> $GITHUB_STEP_SUMMARY
+          echo "   docker run -p 8084:8084 -e SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5431/FTBLR_db ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}:${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "   \`\`\`" >> $GITHUB_STEP_SUMMARY
