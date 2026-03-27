@@ -276,7 +276,7 @@ jobs:
 
       - name: Save Docker image
         run: |
-          docker save ${{ env.DOCKER_IMAGE }}:${{ github.ref_name }}-${{ steps.get_version.outputs.VERSION }} | gzip > ftblr-${{ github.ref_name }}.tar.gz
+          docker save ${{ env.DOCKER_IMAGE }}:${{ github.ref_name }}-${{ steps.get_version.outputs.VERSION }} ${{ env.DOCKER_IMAGE }}:${{ github.ref_name }} | gzip > ftblr-${{ github.ref_name }}.tar.gz
           ls -la *.tar.gz
 
       - name: Upload Docker image artifact
