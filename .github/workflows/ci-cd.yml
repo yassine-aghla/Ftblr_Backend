@@ -117,7 +117,7 @@ jobs:
           if [ -f target/surefire-reports/TEST-*.xml ]; then
             echo " Tests completed successfully" >> $GITHUB_STEP_SUMMARY
           else
-            echo "Tests failed" >> $GITHUB_STEP_SUMMARY
+            echo " Tests failed" >> $GITHUB_STEP_SUMMARY
           fi
 
   # ==================== STEP 4: PACKAGE ====================
@@ -177,30 +177,12 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Download JAR
-        id: download
-        uses: actions/download-artifact@v4
-        with:
-          name: ftblr-jar-${{ github.ref_name }}
-          path: target
-        continue-on-error: true
-
-      - name: Build JAR if download failed
-        if: steps.download.outcome == 'failure'
+      - name: Create JAR file
         run: |
-          echo "JAR not found in artifact, building it..."
-          mvn package -DskipTests
-
-      - name: Verify JAR exists
-        run: |
-          if [ -f target/*.jar ]; then
-            echo "JAR found"
-            ls -la target/
-          else
-            echo " JAR not found, building it..."
-            mvn package -DskipTests
-            ls -la target/
-          fi
+          echo "Creating JAR file..."
+          mvn clean package -DskipTests
+          echo "JAR created successfully"
+          ls -la target/
 
       - name: Get version
         id: get_version
@@ -328,7 +310,7 @@ jobs:
           echo "|  Dockerize |  | Image built |" >> $GITHUB_STEP_SUMMARY
           echo "|  Push |  | Pushed to Docker Hub |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "##  Docker Images" >> $GITHUB_STEP_SUMMARY
+          echo "## 🐳 Docker Images" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Registry | Tag | Pull Command |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-----|--------------|" >> $GITHUB_STEP_SUMMARY
