@@ -14,10 +14,10 @@ env:
 jobs:
   # ==================== STEP 1: TRIGGER ====================
   trigger:
-    name:  Trigger
+    name: Trigger
     runs-on: ubuntu-latest
     steps:
-      - name: 🚀 Pipeline triggered
+      - name: Pipeline triggered
         run: |
           echo "=========================================="
           echo "Pipeline triggered by: ${{ github.event_name }}"
@@ -29,7 +29,7 @@ jobs:
 
   # ==================== STEP 2: BUILD ====================
   build:
-    name:  Build
+    name: Build
     runs-on: ubuntu-latest
     needs: trigger
     steps:
@@ -50,12 +50,12 @@ jobs:
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2
 
-      - name: 📦 Build project
+      - name: Build project
         run: mvn clean compile
 
   # ==================== STEP 3: TEST ====================
   test:
-    name:  Test
+    name: Test
     runs-on: ubuntu-latest
     needs: build
     services:
@@ -94,7 +94,7 @@ jobs:
           echo ""
           echo "PostgreSQL is ready!"
 
-      - name:  Run tests
+      - name: Run tests
         run: mvn test
         env:
           SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5431/FTBLR_db
@@ -112,17 +112,17 @@ jobs:
       - name: Display test summary
         if: always()
         run: |
-          echo "##  Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ -f target/surefire-reports/TEST-*.xml ]; then
-            echo "Tests completed successfully" >> $GITHUB_STEP_SUMMARY
+            echo " Tests completed successfully" >> $GITHUB_STEP_SUMMARY
           else
             echo " Tests failed" >> $GITHUB_STEP_SUMMARY
           fi
 
   # ==================== STEP 4: PACKAGE ====================
   package:
-    name:  Package
+    name: Package
     runs-on: ubuntu-latest
     needs: test
     steps:
@@ -136,7 +136,7 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name:  Package JAR
+      - name: Package JAR
         run: mvn package -DskipTests
 
       - name: Get version from pom.xml
@@ -163,7 +163,7 @@ jobs:
 
   # ==================== STEP 5: DOCKERIZE ====================
   dockerize:
-    name:  Dockerize
+    name: Dockerize
     runs-on: ubuntu-latest
     needs: package
     steps:
@@ -189,28 +189,23 @@ jobs:
       - name: Create Dockerfile
         run: |
           cat > Dockerfile << 'EOF'
-          FROM openjdk:17-jdk-slim
+          FROM eclipse-temurin:17-jre-alpine
           
           LABEL maintainer="FTBLR Team"
           LABEL description="FTBLR Football Match Management Application"
           
           WORKDIR /app
           
-          # Copy JAR file
           COPY target/*.jar app.jar
           
-          # Create non-root user for security
-          RUN groupadd -r ftblr && useradd -r -g ftblr ftblr
+          RUN addgroup -S ftblr && adduser -S ftblr -G ftblr
           USER ftblr
           
-          # Expose application port
           EXPOSE 8084
           
-          # Health check
           HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
             CMD wget --quiet --tries=1 --spider http://localhost:8084/actuator/health || exit 1
           
-          # Run the application
           ENTRYPOINT ["java", "-jar", "app.jar"]
           EOF
 
@@ -234,7 +229,7 @@ jobs:
 
       - name: Display Docker image info
         run: |
-          echo "##  Docker Image Created" >> $GITHUB_STEP_SUMMARY
+          echo "## Docker Image Created" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
@@ -245,7 +240,7 @@ jobs:
 
   # ==================== STEP 6: PUSH ====================
   push:
-    name:  Push
+    name: Push
     runs-on: ubuntu-latest
     needs: dockerize
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
@@ -295,7 +290,6 @@ jobs:
             echo " Pushed latest tag"
           fi
 
-
       - name: Create summary
         run: |
           echo "#  Pipeline Completed Successfully!" >> $GITHUB_STEP_SUMMARY
@@ -304,14 +298,14 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Step | Status | Details |" >> $GITHUB_STEP_SUMMARY
           echo "|------|--------|---------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Trigger |  | Branch: ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "|  Trigger |  | Branch: ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
           echo "|  Build | | Java ${{ env.JAVA_VERSION }} |" >> $GITHUB_STEP_SUMMARY
-          echo "|  Test | | PostgreSQL tests passed |" >> $GITHUB_STEP_SUMMARY
-          echo "|  Package | | JAR created |" >> $GITHUB_STEP_SUMMARY
-          echo "|  Dockerize | | Image built |" >> $GITHUB_STEP_SUMMARY
+          echo "|  Test |  | PostgreSQL tests passed |" >> $GITHUB_STEP_SUMMARY
+          echo "|  Package |  | JAR created |" >> $GITHUB_STEP_SUMMARY
+          echo "| Dockerize |  | Image built |" >> $GITHUB_STEP_SUMMARY
           echo "|  Push | | Pushed to Docker Hub |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Docker Images" >> $GITHUB_STEP_SUMMARY
+          echo "##  Docker Images" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Registry | Tag | Pull Command |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-----|--------------|" >> $GITHUB_STEP_SUMMARY

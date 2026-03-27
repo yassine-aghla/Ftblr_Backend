@@ -1,8 +1,7 @@
-FROM openjdk:17-jdk-slim
+FROM eclipse-temurin:17-jdk-alpine
 
 LABEL maintainer="FTBLR Team"
 LABEL description="FTBLR Football Match Management Application"
-LABEL version="1.0.0"
 
 WORKDIR /app
 
@@ -10,7 +9,7 @@ WORKDIR /app
 COPY target/*.jar app.jar
 
 # Create non-root user for security
-RUN groupadd -r ftblr && useradd -r -g ftblr ftblr
+RUN addgroup -S ftblr && adduser -S ftblr -G ftblr
 USER ftblr
 
 # Expose application port
