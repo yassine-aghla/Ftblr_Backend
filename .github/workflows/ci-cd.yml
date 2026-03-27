@@ -303,6 +303,9 @@ jobs:
     needs: dockerize
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Download Docker image
         uses: actions/download-artifact@v4
         with:
