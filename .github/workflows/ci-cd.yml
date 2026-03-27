@@ -295,6 +295,7 @@ jobs:
             echo " Pushed latest tag"
           fi
 
+
       - name: Create summary
         run: |
           echo "#  Pipeline Completed Successfully!" >> $GITHUB_STEP_SUMMARY
