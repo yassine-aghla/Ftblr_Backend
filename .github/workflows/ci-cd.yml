@@ -363,7 +363,7 @@ jobs:
           echo "|  Dockerize |  | Image built |" >> $GITHUB_STEP_SUMMARY
           echo "|  Push |  | Pushed to Docker Hub |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## 🐳 Docker Images" >> $GITHUB_STEP_SUMMARY
+          echo "##  Docker Images" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Registry | Tag | Pull Command |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-----|--------------|" >> $GITHUB_STEP_SUMMARY

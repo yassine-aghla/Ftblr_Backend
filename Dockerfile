@@ -1,3 +1,13 @@
+# Build stage
+FROM maven:3.9-eclipse-temurin-17 AS build
+WORKDIR /app
+COPY pom.xml .
+RUN mvn dependency:go-offline
+
+COPY src ./src
+RUN mvn clean package -DskipTests
+
+# Run stage
 FROM eclipse-temurin:17-jdk-alpine
 
 LABEL maintainer="FTBLR Team"
@@ -6,7 +16,7 @@ LABEL description="FTBLR Football Match Management Application"
 WORKDIR /app
 
 # Copy JAR file
-COPY target/*.jar app.jar
+COPY --from=build /app/target/*.jar app.jar
 
 # Create non-root user for security
 RUN addgroup -S ftblr && adduser -S ftblr -G ftblr

@@ -1,4 +1,16 @@
 services:
+  app:
+    container_name: ftblr-app
+    build: .
+    ports:
+      - "8084:8084"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/FTBLR_db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=rajabarca
+    depends_on:
+      - db
+    restart: always
 
   db:
     container_name: Ftblr
@@ -22,7 +34,6 @@ services:
       PGADMIN_DEFAULT_PASSWORD: 123456
     ports:
       - "8080:80"
-
 
 volumes:
   db_data:
