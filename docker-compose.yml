@@ -12,11 +12,6 @@ services:
       - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
       - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRATION=${JWT_EXPIRATION}
-      - MAIL_HOST=${MAIL_HOST}
-      - MAIL_PORT=${MAIL_PORT}
-      - MAIL_USERNAME=${MAIL_USERNAME}
-      - MAIL_PASSWORD=${MAIL_PASSWORD}
-      - MAIL_FROM=${MAIL_FROM}
     depends_on:
       db:
         condition: service_healthy
