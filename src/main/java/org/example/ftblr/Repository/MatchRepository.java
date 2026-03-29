@@ -14,7 +14,6 @@ import java.util.UUID;
 @Repository
 public interface MatchRepository extends JpaRepository<Match, UUID> {
 
-    // Vérifications d'unicité
     boolean existsByTeam1AndTeam2AndTime(Team team1, Team team2, LocalDateTime time);
 
     @Query("SELECT COUNT(m) > 0 FROM Match m WHERE " +
@@ -51,19 +50,19 @@ public interface MatchRepository extends JpaRepository<Match, UUID> {
     @Query("SELECT m FROM Match m WHERE m.team1.id = :teamId OR m.team2.id = :teamId")
     List<Match> findAllByTeamId(@Param("teamId") UUID teamId);
 
-    // ✅ COMPTER LES MATCHS D'UNE ÉQUIPE
+    // COMPTER LES MATCHS D'UNE ÉQUIPE
     @Query("SELECT COUNT(m) FROM Match m WHERE m.team1.id = :teamId OR m.team2.id = :teamId")
     long countMatchesByTeamId(@Param("teamId") UUID teamId);
 
-    // ✅ COMPTER LES VICTOIRES D'UNE ÉQUIPE
+    // COMPTER LES VICTOIRES D'UNE ÉQUIPE
     @Query("SELECT COUNT(m) FROM Match m WHERE m.winnerTeam.id = :teamId")
     long countWinsByTeamId(@Param("teamId") UUID teamId);
 
-    // ✅ COMPTER LES MATCHS À DOMICILE
+    // COMPTER LES MATCHS À DOMICILE
     @Query("SELECT COUNT(m) FROM Match m WHERE m.team1.id = :teamId")
     long countHomeMatchesByTeamId(@Param("teamId") UUID teamId);
 
-    // ✅ COMPTER LES MATCHS À L'EXTÉRIEUR
+    //  COMPTER LES MATCHS À L'EXTÉRIEUR
     @Query("SELECT COUNT(m) FROM Match m WHERE m.team2.id = :teamId")
     long countAwayMatchesByTeamId(@Param("teamId") UUID teamId);
 

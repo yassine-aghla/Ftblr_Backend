@@ -2,6 +2,8 @@ package org.example.ftblr.Services;
 
 import org.example.ftblr.dtos.MatchDTO;
 import org.example.ftblr.Entity.*;
+import org.example.ftblr.dtos.MatchResultDetailDTO;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -43,6 +45,7 @@ public interface MatchService {
     long countMatchesByTerrain(UUID terrainId);
     MatchStatistics getMatchStatistics();
     List<MatchDTO> getHeadToHead(UUID team1Id, UUID team2Id);
+    MatchResultDetailDTO getMatchResultDetail(UUID matchId);
 
     @lombok.Data
     @lombok.Builder
